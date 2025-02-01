@@ -1,0 +1,27 @@
+[project]
+name = "django-authx"
+version = "0.1.0"
+description = "All in one authentication and authorization package for django"
+authors = [
+    { name = "DOMINIC MAABOBRA TUOLONG", email = "tuolongdominic@gmail.com" },
+]
+
+dependencies = ["django"]
+
+requires-python = ">=3.10"
+readme = "README.md"
+license = { text = "BSD 3-Clause" }
+
+[build-system]
+requires = ["pdm-backend"]
+build-backend = "pdm.backend"
+
+[tool.pdm]
+distribution = true
+
+[project.optional-dependencies]
+djangorestframework = [
+    "djangorestframework",
+    "django-filter",
+    "markdown",
+]
