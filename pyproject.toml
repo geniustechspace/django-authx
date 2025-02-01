@@ -20,8 +20,9 @@ build-backend = "pdm.backend"
 distribution = true
 
 [project.optional-dependencies]
-djangorestframework = [
-    "djangorestframework",
-    "django-filter",
-    "markdown",
-]
+djangorestframework = ["djangorestframework", "django-filter", "markdown"]
+phonenumbers = ["phonenumbers"]
+all = ["django-authx[djangorestframework, phonenumbers]"]
+
+[dependency-groups]
+dev = ["pytest>=8.3.4", "pytest-django>=4.9.0"]

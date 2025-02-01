@@ -4,9 +4,16 @@ from django.db import models
 from django.utils.encoding import force_str
 from django.utils.translation import gettext_lazy as _
 
+try:
+    from django_authx.utils.phonenumber import PhoneNumber, to_python, validate_region
+    from django_authx.validators import validate_international_phonenumber
+
+    phonenumbers = True
+except Exception as e:
+    phonenumbers = None
+    print("Install phonenumbers to use this module.", e)
+
 from django_authx.fields import formfields
-from django_authx.utils.phonenumber import PhoneNumber, to_python, validate_region
-from django_authx.validators import validate_international_phonenumber
 
 
 class PhoneNumberDescriptor:
@@ -45,80 +52,87 @@ class PhoneNumberDescriptor:
         instance.__dict__[self.field.name] = to_python(value, region=self.field.region)
 
 
-class PhoneNumberField(models.CharField):
-    attr_class = PhoneNumber
-    descriptor_class = PhoneNumberDescriptor
-    default_validators = [validate_international_phonenumber]
+if phonenumbers:
 
-    description = _("Phone number")
+    class PhoneNumberField(models.CharField):
+        attr_class = PhoneNumber
+        descriptor_class = PhoneNumberDescriptor
+        default_validators = [validate_international_phonenumber]
 
-    def __init__(self, *args, region=None, **kwargs):
-        """
-        :keyword str region: 2-letter country code as defined in ISO 3166-1.
-            When not supplied, defaults to :setting:`PHONENUMBER_DEFAULT_REGION`
-        :keyword int max_length: The maximum length of the underlying char field.
-        """
-        kwargs.setdefault("max_length", 128)
-        super().__init__(*args, **kwargs)
-        self._region = region
+        description = _("Phone number")
 
-    @property
-    def region(self):
-        return self._region or getattr(settings, "PHONENUMBER_DEFAULT_REGION", None)
+        def __init__(self, *args, region=None, **kwargs):
+            """
+            :keyword str region: 2-letter country code as defined in ISO 3166-1.
+                When not supplied, defaults to :setting:`PHONENUMBER_DEFAULT_REGION`
+            :keyword int max_length: The maximum length of the underlying char field.
+            """
+            kwargs.setdefault("max_length", 128)
+            super().__init__(*args, **kwargs)
+            self._region = region
 
-    def check(self, **kwargs):
-        errors = super().check(**kwargs)
-        errors.extend(self._check_region())
-        return errors
+        @property
+        def region(self):
+            return self._region or getattr(settings, "PHONENUMBER_DEFAULT_REGION", None)
 
-    def _check_region(self):
-        try:
-            validate_region(self.region)
-        except ValueError as e:
-            return [checks.Error(force_str(e), obj=self)]
-        return []
+        def check(self, **kwargs):
+            errors = super().check(**kwargs)
+            errors.extend(self._check_region())
+            return errors
 
-    def get_prep_value(self, value):
-        """
-        Perform preliminary non-db specific value checks and conversions.
-        """
-        if not value:
+        def _check_region(self):
+            try:
+                validate_region(self.region)
+            except ValueError as e:
+                return [checks.Error(force_str(e), obj=self)]
+            return []
+
+        def get_prep_value(self, value):
+            """
+            Perform preliminary non-db specific value checks and conversions.
+            """
+            if not value:
+                return super().get_prep_value(value)
+
+            if isinstance(value, PhoneNumber):
+                parsed_value = value
+            else:
+                # Convert the string to a PhoneNumber object.
+                parsed_value = to_python(value)
+
+            if parsed_value.is_valid():
+                # A valid phone number. Normalize it for storage.
+                format_string = getattr(settings, "PHONENUMBER_DB_FORMAT", "E164")
+                fmt = PhoneNumber.format_map[format_string]
+                value = parsed_value.format_as(fmt)
+            else:
+                # Not a valid phone number. Store the raw string.
+                value = parsed_value.raw_input
+
             return super().get_prep_value(value)
 
-        if isinstance(value, PhoneNumber):
-            parsed_value = value
-        else:
-            # Convert the string to a PhoneNumber object.
-            parsed_value = to_python(value)
+        def from_db_value(self, value, expression, connection):
+            return to_python(value)
 
-        if parsed_value.is_valid():
-            # A valid phone number. Normalize it for storage.
-            format_string = getattr(settings, "PHONENUMBER_DB_FORMAT", "E164")
-            fmt = PhoneNumber.format_map[format_string]
-            value = parsed_value.format_as(fmt)
-        else:
-            # Not a valid phone number. Store the raw string.
-            value = parsed_value.raw_input
+        def contribute_to_class(self, cls, name, *args, **kwargs):
+            super().contribute_to_class(cls, name, *args, **kwargs)
+            setattr(cls, self.name, self.descriptor_class(self))
 
-        return super().get_prep_value(value)
+        def deconstruct(self):
+            name, path, args, kwargs = super().deconstruct()
+            kwargs["region"] = self._region
+            return name, path, args, kwargs
 
-    def from_db_value(self, value, expression, connection):
-        return to_python(value)
+        def formfield(self, **kwargs):
+            defaults = {
+                "form_class": formfields.PhoneNumberField,
+                "region": self.region,
+                "error_messages": self.error_messages,
+            }
+            defaults.update(kwargs)
+            return super().formfield(**defaults)
 
-    def contribute_to_class(self, cls, name, *args, **kwargs):
-        super().contribute_to_class(cls, name, *args, **kwargs)
-        setattr(cls, self.name, self.descriptor_class(self))
+else:
 
-    def deconstruct(self):
-        name, path, args, kwargs = super().deconstruct()
-        kwargs["region"] = self._region
-        return name, path, args, kwargs
-
-    def formfield(self, **kwargs):
-        defaults = {
-            "form_class": formfields.PhoneNumberField,
-            "region": self.region,
-            "error_messages": self.error_messages,
-        }
-        defaults.update(kwargs)
-        return super().formfield(**defaults)
+    class PhoneNumberField(models.CharField):
+        pass

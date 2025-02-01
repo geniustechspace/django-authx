@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class AuthxConfig(AppConfig):
+class AccountsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = "django_authx"
+    name = 'accounts'

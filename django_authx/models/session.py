@@ -1,5 +1,10 @@
 import uuid
-import humanize
+
+try:
+    import humanize
+except Exception as e:
+    print(e)
+    humanize = None
 
 from django.db import models
 from django.conf import settings
@@ -116,7 +121,7 @@ class Session(base.BaseAuthModel):
         """
         if self.expiry:
             td = self.expiry - self.created
-            return humanize.naturaldelta(td)
+            return humanize.naturaldelta(td) if humanize else td
         return "N/A"
 
     @property
@@ -128,7 +133,7 @@ class Session(base.BaseAuthModel):
         return timezone.now() > self.expires_at
 
     def __str__(self):
-        td = humanize.naturaldelta(self.token_ttl)
+        td = humanize.naturaldelta(self.token_ttl) if humanize else self.token_ttl
         rate = self.throttle_rate or "0/s"
         return "({0}: {1}, {2})".format(self.client_name, td, rate)
 

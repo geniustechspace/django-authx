@@ -7,6 +7,7 @@ import phonenumbers
 from django.conf import settings
 from django.core import validators
 
+
 if TYPE_CHECKING:
     # Use ‘from typing import Self’ from Python 3.11 onwards.
     from typing_extensions import Self  # type: ignore
