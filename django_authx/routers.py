@@ -30,7 +30,7 @@ class AuthRouter(DefaultRouter):
         self.register("sessions", SessionViewSet, basename="session")
 
 
-def get_api_url_patterns():
+def get_authx_api_routes():
     """
     Helper function to get all auth related URL patterns
     """

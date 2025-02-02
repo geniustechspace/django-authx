@@ -56,14 +56,6 @@ class Session(base.BaseAuthModel):
     )
 
     #: Throttle rate for requests authed with this client.
-    #:
-    #: **Format**: ``number_of_requests/period``
-    #: where period should be one of: *('s', 'm', 'h', 'd')*.
-    #: (same format as DRF's throttle rates)
-    #:
-    #: **Example**: ``100/h`` implies 100 requests each hour.
-    #:
-    #: .. versionadded:: 0.2
     throttle_rate = models.CharField(
         max_length=64,
         default="",
@@ -119,8 +111,8 @@ class Session(base.BaseAuthModel):
 
         Uses `humanize package <https://github.com/jmoiron/humanize>`__.
         """
-        if self.expiry:
-            td = self.expiry - self.created
+        if self.expires_at:
+            td = self.expires_at - self.created_at
             return humanize.naturaldelta(td) if humanize else td
         return "N/A"
 

@@ -5,7 +5,8 @@ Supports username, email, phone, OAuth2, magic links and TOTP-based authenticati
 
 import logging
 from typing import Optional
-import pyotp
+
+# import pyotp
 
 from django.contrib.auth.backends import ModelBackend
 from django.contrib.auth import get_user_model
@@ -55,6 +56,14 @@ class BaseAuthxBackend(ModelBackend):
             return user
 
         return None
+
+    def authenticate_header(self, request):
+        """
+        Return a string to be used as the value of the `WWW-Authenticate`
+        header in a `401 Unauthenticated` response, or `None` if the
+        authentication scheme should return `403 Permission Denied` responses.
+        """
+        pass
 
     def validate_auth(
         self, request: HttpRequest, **kwargs
@@ -332,14 +341,14 @@ class TOTPBackend(BaseAuthxBackend):
         if not user or not code:
             return None
 
-        try:
-            auth = TOTPAuth.objects.get(user=user, is_active=True, is_verified=True)
-            totp = pyotp.TOTP(auth.secret_key)
-            if totp.verify(code):
-                self._update_session(auth.user, AUTH_BACKEND_TOTP)
-                return auth.user
-        except TOTPAuth.DoesNotExist:
-            return None
+        # try:
+        #     auth = TOTPAuth.objects.get(user=user, is_active=True, is_verified=True)
+        #     totp = pyotp.TOTP(auth.secret_key)
+        #     if totp.verify(code):
+        #         self._update_session(auth.user, AUTH_BACKEND_TOTP)
+        #         return auth.user
+        # except TOTPAuth.DoesNotExist:
+        #     return None
 
 
 __all__ = [

@@ -54,6 +54,9 @@ class AuthXUserSerializer(serializers.ModelSerializer):
         )
         password = validated_data.pop("password")
 
+        print("validated_data:", validated_data)
+        print("email:", email)
+        print("phone:", phone)
         with transaction.atomic():
             # Create user
             user = super().create(validated_data)

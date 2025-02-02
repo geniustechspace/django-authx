@@ -49,6 +49,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "django_authx.middleware.AuthXMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -56,9 +57,31 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+AUTHENTICATION_BACKENDS = [
+    "django_authx.backends.EmailPasswordAuthBackend",
+    "django_authx.backends.PhonePasswordAuthBackend",
+    "django_authx.backends.OAuth2Backend",
+    "django_authx.backends.MagicLinkBackend",
+    "django_authx.backends.TOTPBackend",
+    "django.contrib.auth.backends.ModelBackend",
+]
+
 AUTHX_SETTINGS = {
     "PRIMARY_EMAIL_FIELD": "email",
     "PRIMARY_PHONE_FIELD": None,
+}
+
+REST_FRAMEWORK = {
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "rest_framework.authentication.BasicAuthentication",
+        "rest_framework.authentication.SessionAuthentication",
+        # "django_authx.backends.UsernameAuthBackend",
+        "django_authx.backends.EmailPasswordAuthBackend",
+        "django_authx.backends.PhonePasswordAuthBackend",
+        "django_authx.backends.OAuth2Backend",
+        "django_authx.backends.MagicLinkBackend",
+        "django_authx.backends.TOTPBackend",
+    ]
 }
 
 

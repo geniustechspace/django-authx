@@ -13,6 +13,8 @@ class BaseAuthViewSet(viewsets.ModelViewSet):
     ordering = ["-created_at"]
 
     def get_queryset(self):
+        if self.request.user.is_staff:
+            return super().get_queryset()
         return self.queryset.filter(user=self.request.user)
 
     def perform_create(self, serializer):
