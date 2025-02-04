@@ -2,57 +2,61 @@ from django.contrib import admin
 from django.contrib.admin import widgets
 from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
+from django.utils import timezone
 
 from . import models
 
 
+class BaseAuthAdmin(admin.ModelAdmin):
+    readonly_fields = ("created_at", "updated_at", "deleted_at")
+    ordering = ("-created_at",)
+
+    def get_status_display(self, obj, check_method):
+        if getattr(obj, check_method)():
+            return format_html('<span class="badge badge-danger">Expired</span>')
+        return format_html('<span class="badge badge-success">Active</span>')
+
+    class Media:
+        css = {"all": ("admin/css/authx_admin.css",)}
+
+
 @admin.register(models.Session)
-class SessionAdmin(admin.ModelAdmin):
+class SessionAdmin(BaseAuthAdmin):
     list_display = (
-        "session_id",
+        "session_key",
         "user",
-        "client_name",
-        "ip_address",
-        "last_activity",
-        "is_active",
+        "client_info",
+        "status_display",
         "expires_in_display",
+        "last_activity",
     )
-    list_filter = ("is_active", "auth_backend", "client_name", "remember_session")
-    search_fields = (
-        "session_id",
-        "user__email",
-        "client_name",
-        "ip_address",
-        "location",
+    list_filter = (
+        ("is_active", admin.BooleanFieldListFilter),
+        ("auth_backend", admin.ChoicesFieldListFilter),
+        ("created_at", admin.DateFieldListFilter),
     )
-    readonly_fields = ("session_id", "created_at", "updated_at", "deleted_at")
-    raw_id_fields = ("user",)
-    date_hierarchy = "created_at"
-    ordering = ("-last_activity",)
+    search_fields = ("session_key", "user__email", "client_name", "ip_address")
 
     fieldsets = (
         (
-            _("Session Info"),
+            _("Session Details"),
             {
                 "fields": (
-                    "session_id",
-                    "user",
-                    "client_name",
+                    ("session_key", "user"),
+                    ("client_name", "ip_address"),
                     ("is_active", "remember_session"),
+                )
+            },
+        ),
+        (
+            _("Security"),
+            {
+                "fields": (
+                    "auth_backend",
+                    ("refresh_token"),
+                    "token_ttl",
+                    "throttle_rate",
                 ),
-                "classes": ("wide",),
-            },
-        ),
-        (
-            _("Location Data"),
-            {
-                "fields": ("ip_address", "location"),
-            },
-        ),
-        (
-            _("Authentication"),
-            {
-                "fields": ("auth_backend", "token", "token_ttl", "throttle_rate"),
                 "classes": ("collapse",),
             },
         ),
@@ -60,16 +64,39 @@ class SessionAdmin(admin.ModelAdmin):
             _("Timestamps"),
             {
                 "fields": (
-                    ("created_at", "updated_at"),
-                    ("last_activity", "expires_at"),
-                    "deleted_at",
+                    ("created_at", "last_activity"),
+                    ("expires_at", "deleted_at"),
                 ),
                 "classes": ("collapse",),
             },
         ),
     )
 
-    actions = ["renew_sessions", "terminate_sessions"]
+    def client_info(self, obj):
+        return format_html(
+            '<div class="client-info">'
+            "<strong>{}</strong><br>"
+            "<small>{}</small>"
+            "</div>",
+            obj.client_name,
+            obj.ip_address,
+        )
+
+    client_info.short_description = _("Client Details")
+
+    def status_display(self, obj):
+        return self.get_status_display(obj, "has_expired")
+
+    status_display.short_description = _("Status")
+
+    actions = ["renew_sessions", "terminate_sessions", "clear_expired_sessions"]
+
+    @admin.action(description=_("Clear expired sessions"))
+    def clear_expired_sessions(self, request, queryset):
+        expired = queryset.filter(expires_at__lt=timezone.now())
+        count = expired.count()
+        expired.delete()
+        self.message_user(request, f"Cleared {count} expired sessions")
 
     def renew_sessions(self, request, queryset):
         for session in queryset:
@@ -95,37 +122,21 @@ class SessionAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.EmailAuth)
-class EmailAuthAdmin(admin.ModelAdmin):
-    list_display = ("email", "user", "is_active", "is_verified", "created_at")
-    list_filter = ("is_active", "is_verified")
-    search_fields = ("email", "user__email")
-    raw_id_fields = ("user",)
-    readonly_fields = ("created_at", "updated_at", "deleted_at")
-    date_hierarchy = "created_at"
-
-    fieldsets = (
-        (
-            None,
-            {
-                "fields": ("email", "user"),
-            },
-        ),
-        (
-            _("Status"),
-            {"fields": (("is_active", "is_verified"),), "classes": ("wide",)},
-        ),
-        (_("Metadata"), {"fields": ("metadata",), "classes": ("collapse",)}),
-        (
-            _("Timestamps"),
-            {
-                "fields": (
-                    ("created_at", "updated_at", "deleted_at"),
-                    # ("last_used", "deleted_at"),
-                ),
-                "classes": ("collapse",),
-            },
-        ),
+class EmailAuthAdmin(BaseAuthAdmin):
+    list_display = ("email", "user", "verification_status", "created_at")
+    list_filter = (
+        "is_verified",
+        "is_active",
+        ("created_at", admin.DateFieldListFilter),
     )
+    search_fields = ("email", "user__email")
+
+    def verification_status(self, obj):
+        return format_html(
+            '<span class="badge badge-{}">{}</span>',
+            "success" if obj.is_verified else "warning",
+            _("Verified") if obj.is_verified else _("Pending"),
+        )
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
@@ -136,7 +147,7 @@ class EmailAuthAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.PhoneAuth)
-class PhoneAuthAdmin(admin.ModelAdmin):
+class PhoneAuthAdmin(BaseAuthAdmin):
     list_display = ("phone", "user", "is_active", "is_verified", "created_at")
     list_filter = ("is_active", "is_verified")
     search_fields = ("phone", "user__email")
@@ -159,9 +170,7 @@ class PhoneAuthAdmin(admin.ModelAdmin):
         (
             _("Timestamps"),
             {
-                "fields": (
-                    ("created_at", "updated_at", "deleted_at"),
-                ),
+                "fields": (("created_at", "updated_at", "deleted_at"),),
                 "classes": ("collapse",),
             },
         ),
@@ -169,7 +178,7 @@ class PhoneAuthAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.OAuth2Auth)
-class OAuth2AuthAdmin(admin.ModelAdmin):
+class OAuth2AuthAdmin(BaseAuthAdmin):
     list_display = (
         "user",
         "provider",
@@ -232,7 +241,7 @@ class OAuth2AuthAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.MagicLinkAuth)
-class MagicLinkAuthAdmin(admin.ModelAdmin):
+class MagicLinkAuthAdmin(BaseAuthAdmin):
     list_display = ("user", "token", "is_active", "expires_at", "link_status")
     list_filter = ("is_active",)
     search_fields = ("user__email", "token")
@@ -280,7 +289,7 @@ class MagicLinkAuthAdmin(admin.ModelAdmin):
 
 
 @admin.register(models.TOTPAuth)
-class TOTPAuthAdmin(admin.ModelAdmin):
+class TOTPAuthAdmin(BaseAuthAdmin):
     list_display = (
         "user",
         "device_name",

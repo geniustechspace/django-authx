@@ -13,7 +13,7 @@ except Exception as e:
     phonenumbers = None
     print("Install phonenumbers to use this module.", e)
 
-from django_authx.fields import formfields
+from django_authx.forms import formfields
 
 
 class PhoneNumberDescriptor:

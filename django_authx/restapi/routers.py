@@ -1,6 +1,6 @@
 from rest_framework.routers import DefaultRouter
 
-from django_authx.apis import (
+from .views import (
     EmailAuthViewSet,
     PhoneAuthViewSet,
     OAuth2AuthViewSet,

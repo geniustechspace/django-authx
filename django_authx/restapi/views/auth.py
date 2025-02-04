@@ -4,15 +4,16 @@ from rest_framework.response import Response
 from rest_framework import status
 
 from django_authx.models import EmailAuth, PhoneAuth, OAuth2Auth, TOTPAuth, MagicLinkAuth
-from django_authx.serializers import (
+
+from .base import BaseAuthViewSet
+
+from ..serializers import (
     EmailAuthSerializer,
     PhoneAuthSerializer,
     OAuth2AuthSerializer,
     TOTPAuthSerializer,
     MagicLinkAuthSerializer,
 )
-
-from .base import BaseAuthViewSet
 
 
 class EmailAuthFilter(filters.FilterSet):

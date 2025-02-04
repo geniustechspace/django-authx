@@ -18,7 +18,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
-from django_authx.routers import get_authx_api_routes
+from django_authx.restapi.routers import get_authx_api_routes
 
 urlpatterns = [
     path("admin/", admin.site.urls),

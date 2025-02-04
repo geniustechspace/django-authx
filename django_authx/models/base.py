@@ -12,19 +12,11 @@ class ModelTimeStamped(models.Model):
     class Meta:
         abstract = True
 
-    def soft_delete(self):
-        self.deleted_at = timezone.now()
-        self.save()
-
-    @property
-    def is_deleted(self):
-        return self.deleted_at is not None
-
 
 class BaseAuthModel(ModelTimeStamped):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
-        related_name="%(class)s_auth",
+        # related_name="%(class)s_auth",
         on_delete=models.CASCADE,
     )
     is_active = models.BooleanField(default=False, db_index=True)
@@ -34,3 +26,12 @@ class BaseAuthModel(ModelTimeStamped):
 
     class Meta:
         abstract = True
+
+    def soft_delete(self):
+        self.is_active = False
+        self.deleted_at = timezone.now()
+        self.save()
+
+    @property
+    def is_deleted(self):
+        return self.deleted_at is not None

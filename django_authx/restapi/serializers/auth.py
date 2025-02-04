@@ -1,9 +1,9 @@
 # from rest_framework import serializers
 
 from django_authx.models import EmailAuth, PhoneAuth, OAuth2Auth, TOTPAuth, MagicLinkAuth
-from django_authx.fields import serializerfields
 
 from .base import BaseAuthSerializer
+from . import serializerfields
 
 
 class EmailAuthSerializer(BaseAuthSerializer):

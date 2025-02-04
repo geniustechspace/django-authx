@@ -3,8 +3,9 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from django_authx.models import Session
-from django_authx.serializers import SessionSerializer
+
 from .base import BaseAuthViewSet
+from ..serializers import SessionSerializer
 
 
 class SessionFilter(filters.FilterSet):

@@ -6,7 +6,7 @@ from rest_framework.decorators import action
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
 from rest_framework.response import Response
 
-from django_authx.serializers.user import AuthXUserSerializer
+from ..serializers import AuthXUserSerializer
 
 User = get_user_model()
 

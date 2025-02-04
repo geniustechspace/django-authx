@@ -5,10 +5,9 @@ from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from django_authx.fields import modelfields
 from django_authx.settings import authx_settings
 
-from . import base
+from . import base, modelfields
 
 
 def generate_token() -> str:
