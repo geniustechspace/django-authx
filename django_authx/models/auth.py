@@ -1,19 +1,11 @@
-import binascii
-from os import urandom
-
 from django.db import models
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from django_authx.settings import authx_settings
+from django_authx.utils import generate_token
+
 
 from . import base, modelfields
-
-
-def generate_token() -> str:
-    return binascii.hexlify(
-        urandom(int(authx_settings.TOKEN_CHARACTER_LENGTH / 2))
-    ).decode()
 
 
 def get_default_expiry():

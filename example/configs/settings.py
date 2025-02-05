@@ -34,7 +34,6 @@ INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
-    "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # THIRD PARTY APPS
@@ -48,7 +47,6 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "django.contrib.sessions.middleware.SessionMiddleware",
     "django_authx.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -66,6 +64,8 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
 
+# SESSION_ENGINE = "django_authx.models.session"
+
 AUTHX_SETTINGS = {
     "PRIMARY_EMAIL_FIELD": "email",
     "PRIMARY_PHONE_FIELD": None,
@@ -74,7 +74,7 @@ AUTHX_SETTINGS = {
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
         # "rest_framework.authentication.BasicAuthentication",
-        "rest_framework.authentication.SessionAuthentication",
+        # "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
         # "django_authx.backends.UsernameAuthBackend",
         "django_authx.backends.EmailPasswordAuthBackend",

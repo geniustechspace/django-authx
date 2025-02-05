@@ -4,6 +4,7 @@ import time
 from django.conf import settings
 from django.contrib.sessions.backends.base import UpdateError
 from django.contrib.sessions.exceptions import SessionInterrupted
+from django.contrib.sessions.middleware import SessionMiddleware as BaseSessionMiddleware
 from django.http import HttpRequest, HttpResponse
 from django.utils import timezone
 from django.utils.cache import patch_vary_headers
@@ -11,11 +12,11 @@ from django.utils.deprecation import MiddlewareMixin
 from django.utils.http import http_date
 
 from django_authx import HTTP_HEADER_ENCODING
-from django_authx.models.session import SessionStore
 
 from .models import Session
 from .models.auth import generate_token
 from .settings import authx_settings
+from .session_store import SessionStore
 
 # User = get_user_model()
 
@@ -33,100 +34,100 @@ def get_authorization_header(request: HttpRequest):
     return auth
 
 
-class AuthXMiddleware(MiddlewareMixin):
-    def process_request(self, request: HttpRequest):
-        # Try to get session ID from multiple sources
-        session_id = self._get_session_id(request)
+# class AuthXMiddleware(MiddlewareMixin):
+#     def process_request(self, request: HttpRequest):
+#         # Try to get session ID from multiple sources
+#         session_id = self._get_session_id(request)
 
-        if session_id:
-            # Handle existing session
-            session = self._get_existing_session(request, session_id)
-        else:
-            # Create new session
-            session = self._create_new_session(request)
+#         if session_id:
+#             # Handle existing session
+#             session = self._get_existing_session(request, session_id)
+#         else:
+#             # Create new session
+#             session = self._create_new_session(request)
 
-        print(session.session_id)
+#         print(session.session_id)
 
-        # Attach session to request
-        if session:
-            request.authx_session = session
-            if session.user:
-                request.user = session.user
+#         # Attach session to request
+#         if session:
+#             request.authx_session = session
+#             if session.user:
+#                 request.user = session.user
 
-    def _get_session_id(self, request: HttpRequest) -> str:
-        """Get session ID from multiple sources"""
-        # First try session storage
-        session_id = request.session.get("authx_session_id")
-        if session_id:
-            return session_id
+#     def _get_session_id(self, request: HttpRequest) -> str:
+#         """Get session ID from multiple sources"""
+#         # First try session storage
+#         session_id = request.session.get("authx_session_id")
+#         if session_id:
+#             return session_id
 
-        # Then try Authorization header for DRF
-        auth = get_authorization_header(request).split()
-        if len(auth) == 2 and auth[0].lower() == b"token":
-            return auth[1].decode()
+#         # Then try Authorization header for DRF
+#         auth = get_authorization_header(request).split()
+#         if len(auth) == 2 and auth[0].lower() == b"token":
+#             return auth[1].decode()
 
-        # Finally try query parameters
-        return request.GET.get("token")
+#         # Finally try query parameters
+#         return request.GET.get("token")
 
-    def _get_existing_session(self, request: HttpRequest, session_id: str) -> Session:
-        """Handle existing session validation and updates"""
-        try:
-            session = Session.objects.select_related("user").get(
-                session_id=session_id, is_active=True, expires_at__gt=timezone.now()
-            )
+#     def _get_existing_session(self, request: HttpRequest, session_id: str) -> Session:
+#         """Handle existing session validation and updates"""
+#         try:
+#             session = Session.objects.select_related("user").get(
+#                 session_id=session_id, is_active=True, expires_at__gt=timezone.now()
+#             )
 
-            # Update last activity
-            session.last_activity = timezone.now()
-            session.save(update_fields=["last_activity"])
+#             # Update last activity
+#             session.last_activity = timezone.now()
+#             session.save(update_fields=["last_activity"])
 
-            # Store session ID in Django session if using session auth
-            if not request.headers.get("Authorization"):
-                request.session["authx_session_id"] = str(session.session_id)
+#             # Store session ID in Django session if using session auth
+#             if not request.headers.get("Authorization"):
+#                 request.session["authx_session_id"] = str(session.session_id)
 
-            return session
+#             return session
 
-        except Session.DoesNotExist:
-            # Clear invalid session
-            request.session.pop("authx_session_id", None)
-            return None
-        except Exception as e:
-            # Log error but don't raise
-            print(f"Session retrieval error: {e}")
-            return None
+#         except Session.DoesNotExist:
+#             # Clear invalid session
+#             request.session.pop("authx_session_id", None)
+#             return None
+#         except Exception as e:
+#             # Log error but don't raise
+#             print(f"Session retrieval error: {e}")
+#             return None
 
-    def _create_new_session(self, request: HttpRequest) -> Session:
-        """Create new session for first-time requests"""
-        try:
-            session = Session.objects.create(
-                client_name=request.META.get("HTTP_USER_AGENT", "Unknown Client"),
-                ip_address=self._get_client_ip(request),
-                location=request.META.get("HTTP_X_FORWARDED_FOR", "Unknown"),
-                token=generate_token(),
-                token_ttl=authx_settings.DEFAULT_TOKEN_TTL,
-                expires_at=timezone.now() + authx_settings.DEFAULT_TOKEN_TTL,
-                is_active=True,
-                is_verified=True,
-            )
+#     def _create_new_session(self, request: HttpRequest) -> Session:
+#         """Create new session for first-time requests"""
+#         try:
+#             session = Session.objects.create(
+#                 client_name=request.META.get("HTTP_USER_AGENT", "Unknown Client"),
+#                 ip_address=self._get_client_ip(request),
+#                 location=request.META.get("HTTP_X_FORWARDED_FOR", "Unknown"),
+#                 token=generate_token(),
+#                 token_ttl=authx_settings.DEFAULT_TOKEN_TTL,
+#                 expires_at=timezone.now() + authx_settings.DEFAULT_TOKEN_TTL,
+#                 is_active=True,
+#                 is_verified=True,
+#             )
 
-            # Store in Django session if not using token auth
-            if not request.headers.get("Authorization"):
-                request.session["authx_session_id"] = str(session.session_id)
+#             # Store in Django session if not using token auth
+#             if not request.headers.get("Authorization"):
+#                 request.session["authx_session_id"] = str(session.session_id)
 
-            return session
+#             return session
 
-        except Exception as e:
-            print(f"Session creation error: {e}")
-            return None
+#         except Exception as e:
+#             print(f"Session creation error: {e}")
+#             return None
 
-    def _get_client_ip(self, request: HttpRequest) -> str:
-        """Get client IP from request"""
-        x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-        if x_forwarded_for:
-            return x_forwarded_for.split(",")[0]
-        return request.META.get("REMOTE_ADDR", "0.0.0.0")
+#     def _get_client_ip(self, request: HttpRequest) -> str:
+#         """Get client IP from request"""
+#         x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
+#         if x_forwarded_for:
+#             return x_forwarded_for.split(",")[0]
+#         return request.META.get("REMOTE_ADDR", "0.0.0.0")
 
 
-class SessionMiddleware(MiddlewareMixin):
+class SessionMiddleware(BaseSessionMiddleware):
     def __init__(self, get_response):
         super().__init__(get_response)
         self.SessionStore = SessionStore
@@ -134,9 +135,6 @@ class SessionMiddleware(MiddlewareMixin):
     def process_request(self, request: HttpRequest):
         session_key = request.COOKIES.get(settings.SESSION_COOKIE_NAME)
         request.session = self.SessionStore(session_key)
-        print(request.session)
-        print(request.session.session_key)
-        print(request.session.values())
 
     def process_response(self, request: HttpRequest, response: HttpResponse):
         """
@@ -193,4 +191,7 @@ class SessionMiddleware(MiddlewareMixin):
                         httponly=settings.SESSION_COOKIE_HTTPONLY or None,
                         samesite=settings.SESSION_COOKIE_SAMESITE,
                     )
+        # print(response.cookies)
+        # print(request.session.session_key)
+        # print(request.session.values())
         return response

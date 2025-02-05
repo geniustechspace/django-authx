@@ -84,11 +84,10 @@ class BaseAuthxBackend(ModelBackend):
         remember = getattr(request, "data", {}).get("remember", False)
         try:
             session = Session.objects.create(
-                client_name=request.META.get("HTTP_USER_AGENT", "Unknown Client"),
+                user_agent=request.META.get("HTTP_USER_AGENT", "Unknown Client"),
                 ip_address=request.META.get("REMOTE_ADDR", "0.0.0.0"),
                 location=request.META.get("HTTP_X_FORWARDED_FOR", "Unknown"),
-                token=generate_token(),
-                token_ttl=authx_settings.DEFAULT_TOKEN_TTL,
+                # token=generate_token(),
                 expires_at=timezone.now() + authx_settings.DEFAULT_TOKEN_TTL,
                 remember_session=remember,
                 is_active=True,

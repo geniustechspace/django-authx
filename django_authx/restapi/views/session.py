@@ -12,7 +12,6 @@ class SessionFilter(filters.FilterSet):
     class Meta:
         model = Session
         fields = {
-            "client_name": ["exact", "contains"],
             "auth_backend": ["exact"],
             "ip_address": ["exact"],
             "location": ["exact", "contains"],
