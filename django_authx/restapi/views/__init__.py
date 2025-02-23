@@ -3,7 +3,6 @@ from .auth import (
     PhoneAuthViewSet,
     OAuth2AuthViewSet,
     TOTPAuthViewSet,
-    MagicLinkAuthViewSet,
 )
 from .session import SessionViewSet
 from .user import UserViewSet
@@ -13,7 +12,6 @@ __all__ = [
     "PhoneAuthViewSet",
     "OAuth2AuthViewSet",
     "TOTPAuthViewSet",
-    "MagicLinkAuthViewSet",
     "SessionViewSet",
     "UserViewSet",
 ]

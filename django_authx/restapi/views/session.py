@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from django_authx.models import Session
 
 from .base import BaseAuthViewSet
-from ..serializers import SessionSerializer
+from ..serializers.session import SessionSerializer
 
 
 class SessionFilter(filters.FilterSet):
@@ -17,7 +17,6 @@ class SessionFilter(filters.FilterSet):
             "location": ["exact", "contains"],
             "is_active": ["exact"],
             "created_at": ["gte", "lte"],
-            "last_activity": ["gte", "lte"],
         }
 
 
@@ -26,7 +25,7 @@ class SessionViewSet(BaseAuthViewSet):
     serializer_class = SessionSerializer
     filterset_class = SessionFilter
     search_fields = ["client_name", "location", "auth_backend"]
-    ordering_fields = ["created_at", "last_activity", "expires_at"]
+    ordering_fields = ["created_at", "expires_at"]
 
     @action(detail=True, methods=["post"])
     def revoke(self, request, pk=None):

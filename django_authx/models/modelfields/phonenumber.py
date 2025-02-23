@@ -5,7 +5,7 @@ from django.utils.encoding import force_str
 from django.utils.translation import gettext_lazy as _
 
 try:
-    from django_authx.utils.phonenumber import PhoneNumber, to_python, validate_region
+    from django_authx.dependencies.phonenumber import PhoneNumber, to_python, validate_region
     from django_authx.validators import validate_international_phonenumber
 
     phonenumbers = True

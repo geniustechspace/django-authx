@@ -3,7 +3,6 @@ from .auth import (
     PhoneAuthSerializer,
     OAuth2AuthSerializer,
     TOTPAuthSerializer,
-    MagicLinkAuthSerializer,
 )
 from .session import SessionSerializer
 from .user import AuthXUserSerializer
@@ -15,6 +14,5 @@ __all__ = [
     "PhoneAuthSerializer",
     "OAuth2AuthSerializer",
     "TOTPAuthSerializer",
-    "MagicLinkAuthSerializer",
     "SessionSerializer",
 ]

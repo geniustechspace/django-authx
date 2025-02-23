@@ -14,9 +14,7 @@ from django.contrib.auth.models import AbstractBaseUser
 from django.http import HttpRequest
 from django.utils import timezone
 
-from .models import EmailAuth, PhoneAuth, OAuth2Auth, MagicLinkAuth, TOTPAuth, Session
-from .models.auth import generate_token
-from .settings import authx_settings
+from .models import EmailAuth, PhoneAuth, OAuth2Auth, Session
 
 logger = logging.getLogger(__name__)
 UserModel = get_user_model()
@@ -48,14 +46,17 @@ class BaseAuthxBackend(ModelBackend):
         Returns:
             User: Authenticated user object if successful, None otherwise
         """
-        self.session = self.get_session(request)
-        if self.session is None:
-            self._create_session(request)
+        # self.session = request.authx_session
+        if request.session.session_key is None:
+            return None
         user = self.validate_auth(request, **kwargs)
-        if user and self.session:
-            return user
-
-        return None
+        print(self.session)
+        print(user)
+        if user:
+            request.authx_session.user = user
+            request.authx_session.user.save(update_fields=["user",])
+        print(user, self.session, self.session.user, sep="\n")
+        return user or self.session.user if self.session else None
 
     def authenticate_header(self, request):
         """
@@ -79,27 +80,9 @@ class BaseAuthxBackend(ModelBackend):
         """
         return None
 
-    def _create_session(self, request: HttpRequest):
-        """Create authentication session"""
-        remember = getattr(request, "data", {}).get("remember", False)
-        try:
-            session = Session.objects.create(
-                user_agent=request.META.get("HTTP_USER_AGENT", "Unknown Client"),
-                ip_address=request.META.get("REMOTE_ADDR", "0.0.0.0"),
-                location=request.META.get("HTTP_X_FORWARDED_FOR", "Unknown"),
-                # token=generate_token(),
-                expires_at=timezone.now() + authx_settings.DEFAULT_TOKEN_TTL,
-                remember_session=remember,
-                is_active=True,
-                is_verified=True,
-            )
-            self.session = session
-        except Exception as e:
-            logger.error(f"Session creation failed: {str(e)}")
-
     def _update_session(
         self, user: AbstractBaseUser, auth_backend: str = None, **kwargs
-    ) -> Optional[Session]:
+    ) -> None:
         """Update existing session"""
         if not self.session:
             return None
@@ -124,31 +107,23 @@ class BaseAuthxBackend(ModelBackend):
 
     def get_session(self, request: HttpRequest) -> Optional[Session]:
         """Get and update active session"""
-        session_id = request.session.get("authx_session_id")
-        if not session_id:
+        if not request.authx_session:
             return None
 
         try:
-            session = Session.objects.get(
-                session_id=session_id, is_active=True, expires_at__gt=timezone.now()
+            session = Session.objects.select_related("user").get(
+                session_key=request.session.session_key,
+                is_active=True,
+                expires_at__gt=timezone.now(),
             )
-            session.last_activity = timezone.now()
-            session.save(update_fields=["last_activity"])
+            session.last_used_at = timezone.now()
+            session.save(update_fields=["last_used_at"])
             return session
         except Session.DoesNotExist:
             return None
-
-    def clear_session(self, request: HttpRequest) -> None:
-        """Clear active session"""
-        if hasattr(request, "authx_session"):
-            session = request.authx_session
-            session.is_active = False
-            session.save(update_fields=["is_active"])
-
-            request.session.pop("authx_session_id", None)
-            request.session.pop("authx_token", None)
-            if hasattr(request, "authx_session"):
-                del request.authx_session
+        except Exception as e:
+            logger.error(f"Session retrieval failed: {str(e)}")
+            return None
 
 
 class UsernameAuthBackend(BaseAuthxBackend):
@@ -161,9 +136,11 @@ class UsernameAuthBackend(BaseAuthxBackend):
         **kwargs,
     ):
         username = username or kwargs.get(UserModel.USERNAME_FIELD)
-        return super(ModelBackend).authenticate(
+        user = super(ModelBackend, self).authenticate(
             request, username=username, password=password
         )
+
+        return user
 
 
 class EmailPasswordAuthBackend(BaseAuthxBackend):
@@ -279,42 +256,6 @@ class OAuth2Backend(BaseAuthxBackend):
             return None
 
 
-class MagicLinkBackend(BaseAuthxBackend):
-    """Magic link based authentication backend.
-
-    Handles passwordless authentication via magic links.
-    Validates one-time tokens sent via email/SMS.
-    """
-
-    def validate_auth(
-        self, request: HttpRequest, token=None, **kwargs
-    ) -> Optional[AbstractBaseUser]:
-        """Validate magic link token authentication.
-
-        Args:
-            request (HttpRequest): The incoming request object
-            token (str, optional): One-time authentication token
-            **kwargs: Additional arguments
-
-        Returns:
-            Optional[AbstractBaseUser]: User object if valid token, None otherwise
-        """
-
-        if not token:
-            return None
-
-        try:
-            auth = MagicLinkAuth.objects.get(
-                token=token, is_active=True, is_verified=False
-            )
-            auth.is_verified = True
-            auth.save()
-            self._create_session(request, auth.user, AUTH_BACKEND_MAGIC_LINK)
-            return auth.user
-        except MagicLinkAuth.DoesNotExist:
-            return None
-
-
 class TOTPBackend(BaseAuthxBackend):
     """Time-based One-Time Password (TOTP) authentication backend.
 
@@ -355,6 +296,5 @@ __all__ = [
     "EmailPasswordAuthBackend",
     "PhonePasswordAuthBackend",
     "OAuth2Backend",
-    "MagicLinkBackend",
     "TOTPBackend",
 ]

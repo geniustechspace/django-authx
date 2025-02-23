@@ -1,14 +1,17 @@
 from django.contrib import admin
 from django.contrib.admin import widgets
 from django.utils.html import format_html
-from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 
-from . import models
+from django_authx import models
 
 
 class BaseAuthAdmin(admin.ModelAdmin):
-    readonly_fields = ("created_at", "updated_at", "deleted_at")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
     ordering = ("-created_at",)
 
     def get_status_display(self, obj, check_method):
@@ -26,16 +29,21 @@ class SessionAdmin(BaseAuthAdmin):
         "session_key",
         "user",
         "client_info",
-        "status_display",
-        "expires_in_display",
         "last_activity",
     )
     list_filter = (
         ("is_active", admin.BooleanFieldListFilter),
         ("auth_backend", admin.ChoicesFieldListFilter),
         ("created_at", admin.DateFieldListFilter),
+        ("remember_session", admin.BooleanFieldListFilter),
     )
-    search_fields = ("session_key", "user__email", "client_name", "ip_address")
+    search_fields = (
+        "session_key",
+        "user__email",
+        "user_agent",
+        "ip_address",
+        "location",
+    )
 
     fieldsets = (
         (
@@ -43,8 +51,9 @@ class SessionAdmin(BaseAuthAdmin):
             {
                 "fields": (
                     ("session_key", "user"),
-                    ("client_name", "ip_address"),
-                    ("is_active", "remember_session"),
+                    ("user_agent", "ip_address"),
+                    ("location", "remember_session"),
+                    "is_active",
                 )
             },
         ),
@@ -53,8 +62,7 @@ class SessionAdmin(BaseAuthAdmin):
             {
                 "fields": (
                     "auth_backend",
-                    ("refresh_token"),
-                    "token_ttl",
+                    ("access_token", "refresh_token"),
                     "throttle_rate",
                 ),
                 "classes": ("collapse",),
@@ -64,30 +72,34 @@ class SessionAdmin(BaseAuthAdmin):
             _("Timestamps"),
             {
                 "fields": (
-                    ("created_at", "last_activity"),
-                    ("expires_at", "deleted_at"),
+                    ("created_at", "last_used_at"),
+                    "expires_at",
                 ),
                 "classes": ("collapse",),
             },
         ),
     )
 
+    readonly_fields = (
+        "session_key",
+        "access_token",
+        "refresh_token",
+        "created_at",
+        "last_used_at",
+    )
+
     def client_info(self, obj):
         return format_html(
             '<div class="client-info">'
             "<strong>{}</strong><br>"
-            "<small>{}</small>"
+            "<small>{} - {}</small>"
             "</div>",
-            obj.client_name,
+            obj.user_agent,
             obj.ip_address,
+            obj.location,
         )
 
     client_info.short_description = _("Client Details")
-
-    def status_display(self, obj):
-        return self.get_status_display(obj, "has_expired")
-
-    status_display.short_description = _("Status")
 
     actions = ["renew_sessions", "terminate_sessions", "clear_expired_sessions"]
 
@@ -100,7 +112,7 @@ class SessionAdmin(BaseAuthAdmin):
 
     def renew_sessions(self, request, queryset):
         for session in queryset:
-            session.renew_token()
+            session.refresh()
         self.message_user(request, f"Successfully renewed {queryset.count()} sessions.")
 
     renew_sessions.short_description = _("Renew selected sessions")
@@ -112,13 +124,6 @@ class SessionAdmin(BaseAuthAdmin):
         )
 
     terminate_sessions.short_description = _("Terminate selected sessions")
-
-    def expires_in_display(self, obj):
-        if obj.has_expired:
-            return format_html('<span style="color: red;">Expired</span>')
-        return obj.expires_in
-
-    expires_in_display.short_description = _("Expires in")
 
 
 @admin.register(models.EmailAuth)
@@ -140,9 +145,6 @@ class EmailAuthAdmin(BaseAuthAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
-        form.base_fields["metadata"].widget = widgets.AdminTextareaWidget(
-            attrs={"rows": 3, "cols": 40}
-        )
         return form
 
 
@@ -152,7 +154,10 @@ class PhoneAuthAdmin(BaseAuthAdmin):
     list_filter = ("is_active", "is_verified")
     search_fields = ("phone", "user__email")
     raw_id_fields = ("user",)
-    readonly_fields = ("created_at", "updated_at", "deleted_at")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
     date_hierarchy = "created_at"
 
     fieldsets = (
@@ -166,11 +171,15 @@ class PhoneAuthAdmin(BaseAuthAdmin):
             _("Status"),
             {"fields": (("is_active", "is_verified"),), "classes": ("wide",)},
         ),
-        (_("Metadata"), {"fields": ("metadata",), "classes": ("collapse",)}),
         (
             _("Timestamps"),
             {
-                "fields": (("created_at", "updated_at", "deleted_at"),),
+                "fields": (
+                    (
+                        "created_at",
+                        "updated_at",
+                    ),
+                ),
                 "classes": ("collapse",),
             },
         ),
@@ -190,7 +199,10 @@ class OAuth2AuthAdmin(BaseAuthAdmin):
     list_filter = ("provider", "is_active")
     search_fields = ("user__email", "provider_id")
     raw_id_fields = ("user",)
-    readonly_fields = ("created_at", "updated_at", "deleted_at")
+    readonly_fields = (
+        "created_at",
+        "updated_at",
+    )
     date_hierarchy = "created_at"
 
     fieldsets = (
@@ -212,13 +224,15 @@ class OAuth2AuthAdmin(BaseAuthAdmin):
                 "classes": ("collapse",),
             },
         ),
-        (_("Metadata"), {"fields": ("metadata",), "classes": ("collapse",)}),
         (
             _("Timestamps"),
             {
                 "fields": (
-                    ("created_at", "updated_at", "deleted_at"),
-                    # ("last_used", "deleted_at"),
+                    (
+                        "created_at",
+                        "updated_at",
+                    ),
+                    # ("last_used",),
                 ),
                 "classes": ("collapse",),
             },
@@ -240,132 +254,84 @@ class OAuth2AuthAdmin(BaseAuthAdmin):
         return form
 
 
-@admin.register(models.MagicLinkAuth)
-class MagicLinkAuthAdmin(BaseAuthAdmin):
-    list_display = ("user", "token", "is_active", "expires_at", "link_status")
-    list_filter = ("is_active",)
-    search_fields = ("user__email", "token")
-    raw_id_fields = ("user", "session")
-    readonly_fields = ("created_at", "updated_at", "deleted_at", "token")
-    date_hierarchy = "created_at"
-
-    fieldsets = (
-        (
-            _("Link Info"),
-            {
-                "fields": ("user", "session", ("is_active", "is_verified")),
-            },
-        ),
-        (_("Token"), {"fields": ("token", "expires_at"), "classes": ("wide",)}),
-        (_("Metadata"), {"fields": ("metadata",), "classes": ("collapse",)}),
-        (
-            _("Timestamps"),
-            {
-                "fields": (
-                    ("created_at", "updated_at", "deleted_at"),
-                    # ("last_used", "deleted_at"),
-                ),
-                "classes": ("collapse",),
-            },
-        ),
-    )
-
-    actions = ["invalidate_links"]
-
-    def invalidate_links(self, request, queryset):
-        queryset.update(is_active=False)
-        self.message_user(
-            request, f"Successfully invalidated {queryset.count()} magic links."
-        )
-
-    invalidate_links.short_description = _("Invalidate selected magic links")
-
-    def link_status(self, obj):
-        if obj.is_expired():
-            return format_html('<span style="color: red;">Expired</span>')
-        return format_html('<span style="color: green;">Valid</span>')
-
-    link_status.short_description = _("Link Status")
-
-
 @admin.register(models.TOTPAuth)
 class TOTPAuthAdmin(BaseAuthAdmin):
-    list_display = (
-        "user",
-        "device_name",
-        "is_active",
-        "is_verified",
-        "last_used_at",
-    )
-    list_filter = ("is_active", "is_verified")
-    search_fields = ("user__email", "device_name")
-    raw_id_fields = ("user",)
-    readonly_fields = (
-        "created_at",
-        "updated_at",
-        "deleted_at",
-        "secret_key",
-        "backup_codes",
-        "recovery_codes",
-    )
-    date_hierarchy = "created_at"
+    # list_display = (
+    #     "user",
+    #     "device_name",
+    #     "is_active",
+    #     "is_verified",
+    #     "last_used_at",
+    # )
+    # list_filter = ("is_active", "is_verified")
+    # search_fields = ("user__email", "device_name")
+    # raw_id_fields = ("user",)
+    # readonly_fields = (
+    #     "created_at",
+    #     "updated_at",
+    #     "secret_key",
+    #     "backup_codes",
+    #     "recovery_codes",
+    # )
+    # date_hierarchy = "created_at"
 
-    fieldsets = (
-        (
-            _("Device Info"),
-            {
-                "fields": ("user", "device_name", ("is_active", "is_verified")),
-            },
-        ),
-        (
-            _("TOTP Settings"),
-            {
-                "fields": ("secret_key",),
-                "classes": ("collapse",),
-                "description": _("Warning: Secret key should never be shared."),
-            },
-        ),
-        (
-            _("Backup & Recovery"),
-            {"fields": ("backup_codes", "recovery_codes"), "classes": ("collapse",)},
-        ),
-        (_("Metadata"), {"fields": ("metadata",), "classes": ("collapse",)}),
-        (
-            _("Timestamps"),
-            {
-                "fields": (
-                    ("created_at", "updated_at"),
-                    # ("last_used", "last_used_at"),
-                    "deleted_at",
-                ),
-                "classes": ("collapse",),
-            },
-        ),
-    )
+    # fieldsets = (
+    #     (
+    #         _("Device Info"),
+    #         {
+    #             "fields": ("user", "device_name", ("is_active", "is_verified")),
+    #         },
+    #     ),
+    #     (
+    #         _("TOTP Settings"),
+    #         {
+    #             "fields": ("secret_key",),
+    #             "classes": ("collapse",),
+    #             "description": _("Warning: Secret key should never be shared."),
+    #         },
+    #     ),
+    #     (
+    #         _("Backup & Recovery"),
+    #         {"fields": ("backup_codes", "recovery_codes"), "classes": ("collapse",)},
+    #     ),
+    #     (_("Metadata"), {"fields": ("metadata",), "classes": ("collapse",)}),
+    #     (
+    #         _("Timestamps"),
+    #         {
+    #             "fields": (
+    #                 ("created_at", "updated_at"),
+    #                 # ("last_used", "last_used_at"),
+    #             ),
+    #             "classes": ("collapse",),
+    #         },
+    #     ),
+    # )
 
-    actions = ["disable_devices"]
+    # actions = ["disable_devices"]
 
-    def disable_devices(self, request, queryset):
-        queryset.update(is_active=False)
-        self.message_user(
-            request, f"Successfully disabled {queryset.count()} TOTP devices."
-        )
+    # def disable_devices(self, request, queryset):
+    #     queryset.update(is_active=False)
+    #     self.message_user(
+    #         request, f"Successfully disabled {queryset.count()} TOTP devices."
+    #     )
 
-    disable_devices.short_description = _("Disable selected TOTP devices")
+    # disable_devices.short_description = _("Disable selected TOTP devices")
 
-    def get_fields(self, request, obj=None):
-        fields = super().get_fields(request, obj)
-        if obj is None:  # Adding new object
-            fields = [f for f in fields if f not in self.readonly_fields]
-        return fields
+    # def get_fields(self, request, obj=None):
+    #     fields = super().get_fields(request, obj)
+    #     if obj is None:  # Adding new object
+    #         fields = [f for f in fields if f not in self.readonly_fields]
+    #     return fields
 
-    def get_form(self, request, obj=None, **kwargs):
-        form = super().get_form(request, obj, **kwargs)
-        if obj:  # Only for existing objects
-            form.base_fields["backup_codes"].widget = widgets.AdminTextareaWidget(
-                attrs={"rows": 3, "readonly": "readonly"}
-            )
-            form.base_fields["recovery_codes"].widget = widgets.AdminTextareaWidget(
-                attrs={"rows": 3, "readonly": "readonly"}
-            )
-        return form
+    # def get_form(self, request, obj=None, **kwargs):
+    #     form = super().get_form(request, obj, **kwargs)
+    #     if obj:  # Only for existing objects
+    #         form.base_fields["backup_codes"].widget = widgets.AdminTextareaWidget(
+    #             attrs={"rows": 3, "readonly": "readonly"}
+    #         )
+    #         form.base_fields["recovery_codes"].widget = widgets.AdminTextareaWidget(
+    #             attrs={"rows": 3, "readonly": "readonly"}
+    #         )
+    #     return form
+
+    pass

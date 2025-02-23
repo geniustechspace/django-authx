@@ -1,6 +1,6 @@
 # from rest_framework import serializers
 
-from django_authx.models import EmailAuth, PhoneAuth, OAuth2Auth, TOTPAuth, MagicLinkAuth
+from django_authx.models import EmailAuth, PhoneAuth, OAuth2Auth, TOTPAuth
 
 from .base import BaseAuthSerializer
 from . import serializerfields
@@ -52,10 +52,3 @@ class TOTPAuthSerializer(BaseAuthSerializer):
             "backup_codes": {"write_only": True},
             "recovery_codes": {"write_only": True},
         }
-
-
-class MagicLinkAuthSerializer(BaseAuthSerializer):
-    class Meta(BaseAuthSerializer.Meta):
-        model = MagicLinkAuth
-        fields = BaseAuthSerializer.Meta.fields + ("token", "session", "expires_at")
-        extra_kwargs = {"token": {"read_only": True}}

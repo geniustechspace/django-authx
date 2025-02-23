@@ -14,7 +14,7 @@ from phonenumbers import (
     region_codes_for_country_code,
 )
 
-from django_authx.utils.phonenumber import PhoneNumber, to_python, validate_region
+from django_authx.dependencies.phonenumber import PhoneNumber, to_python, validate_region
 from django_authx.validators import validate_international_phonenumber
 
 

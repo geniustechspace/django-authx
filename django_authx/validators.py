@@ -2,7 +2,7 @@ import phonenumbers
 from django.core.exceptions import ValidationError
 from django.utils.translation import gettext_lazy as _
 
-from django_authx.utils.phonenumber import PhoneNumber, to_python
+from django_authx.dependencies.phonenumber import PhoneNumber, to_python
 
 
 def validate_international_phonenumber(value):

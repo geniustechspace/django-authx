@@ -1,9 +1,9 @@
 from django_filters import rest_framework as filters
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework import status
+# from rest_framework import status
 
-from django_authx.models import EmailAuth, PhoneAuth, OAuth2Auth, TOTPAuth, MagicLinkAuth
+from django_authx.models import EmailAuth, PhoneAuth, OAuth2Auth, TOTPAuth
 
 from .base import BaseAuthViewSet
 
@@ -12,7 +12,6 @@ from ..serializers import (
     PhoneAuthSerializer,
     OAuth2AuthSerializer,
     TOTPAuthSerializer,
-    MagicLinkAuthSerializer,
 )
 
 
@@ -97,7 +96,6 @@ class TOTPAuthFilter(filters.FilterSet):
     class Meta:
         model = TOTPAuth
         fields = {
-            "device_name": ["exact", "contains"],
             "is_active": ["exact"],
             "last_used_at": ["gte", "lte"],
         }
@@ -107,37 +105,9 @@ class TOTPAuthViewSet(BaseAuthViewSet):
     queryset = TOTPAuth.objects.all()
     serializer_class = TOTPAuthSerializer
     filterset_class = TOTPAuthFilter
-    search_fields = ["device_name"]
-    ordering_fields = ["device_name", "created_at", "last_used_at"]
+    ordering_fields = ["created_at", "last_used_at"]
 
     @action(detail=True, methods=["post"])
     def verify_totp(self, request, pk=None):
         # Add your TOTP verification logic here
         return Response({"status": "TOTP verified"})
-
-
-class MagicLinkAuthFilter(filters.FilterSet):
-    class Meta:
-        model = MagicLinkAuth
-        fields = {
-            "is_active": ["exact"],
-            "expires_at": ["gte", "lte"],
-        }
-
-
-class MagicLinkAuthViewSet(BaseAuthViewSet):
-    queryset = MagicLinkAuth.objects.all()
-    serializer_class = MagicLinkAuthSerializer
-    filterset_class = MagicLinkAuthFilter
-    ordering_fields = ["created_at", "expires_at"]
-
-    @action(detail=True, methods=["post"])
-    def verify_link(self, request, pk=None):
-        instance = self.get_object()
-        if instance.is_expired():
-            return Response(
-                {"error": "Link has expired"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        instance.is_verified = True
-        instance.save()
-        return Response({"status": "link verified"})

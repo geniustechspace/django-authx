@@ -21,6 +21,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "django-insecure-rz1#s6es*(ozf74k1^k&r#8ep-@cmoxg*2t&%lxdhponknpyiv"
+FIELD_ENCRYPTION_KEY = "dML7OoVuZkKNvkJ9YGKqnh3ORl7nL_xE3MkN6JyeJ0E="
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -34,6 +35,7 @@ INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
+    "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
     # THIRD PARTY APPS
@@ -47,7 +49,8 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
-    "django_authx.middleware.SessionMiddleware",
+    "django.contrib.sessions.middleware.SessionMiddleware",
+    "django_authx.middleware.AuthXMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -56,15 +59,14 @@ MIDDLEWARE = [
 ]
 
 AUTHENTICATION_BACKENDS = [
+    "django_authx.backends.UsernameAuthBackend",
     "django_authx.backends.EmailPasswordAuthBackend",
     "django_authx.backends.PhonePasswordAuthBackend",
     "django_authx.backends.OAuth2Backend",
-    "django_authx.backends.MagicLinkBackend",
     "django_authx.backends.TOTPBackend",
     "django.contrib.auth.backends.ModelBackend",
 ]
 
-# SESSION_ENGINE = "django_authx.models.session"
 
 AUTHX_SETTINGS = {
     "PRIMARY_EMAIL_FIELD": "email",
@@ -77,11 +79,11 @@ REST_FRAMEWORK = {
         # "rest_framework.authentication.SessionAuthentication",
         "rest_framework.authentication.TokenAuthentication",
         # "django_authx.backends.UsernameAuthBackend",
-        "django_authx.backends.EmailPasswordAuthBackend",
-        "django_authx.backends.PhonePasswordAuthBackend",
-        "django_authx.backends.OAuth2Backend",
-        "django_authx.backends.MagicLinkBackend",
-        "django_authx.backends.TOTPBackend",
+        # "django_authx.backends.EmailPasswordAuthBackend",
+        # "django_authx.backends.PhonePasswordAuthBackend",
+        # "django_authx.backends.OAuth2Backend",
+        # "django_authx.backends.MagicLinkBackend",
+        # "django_authx.backends.TOTPBackend",
     ]
 }
 

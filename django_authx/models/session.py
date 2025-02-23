@@ -1,5 +1,4 @@
 from __future__ import annotations
-from typing import Optional
 from datetime import timedelta
 
 from django.db import models
@@ -10,8 +9,8 @@ from django.utils.functional import cached_property
 from django.utils.translation import gettext_lazy as _
 
 from django_authx.dependencies import humanize
-from django_authx.utils import generate_token
-from . import base
+from django_authx.utils.tokens import generate_token
+from .base import AbstractBaseAuthModel
 
 
 class SessionQuerySet(models.QuerySet):
@@ -38,7 +37,7 @@ class SessionManager(models.Manager):
 
     def create_session(
         self,
-        user: Optional[settings.AUTH_USER_MODEL] = None,
+        user=None,
         expires_in: int = 86400,
         **kwargs,
     ) -> Session:
@@ -50,11 +49,32 @@ class SessionManager(models.Manager):
         return session
 
 
-class AbstractBaseSession(base.BaseAuthModel):
+class AbstractBaseSession(AbstractBaseAuthModel):
     session_key = models.CharField(
         _("session key"),
         max_length=64,
         primary_key=True,
+        default=generate_token,
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sessions_set",
+        verbose_name=_("user"),
+    )
+    auth_backend = models.CharField(
+        _("auth backend"),
+        max_length=126,
+        default="django.contrib.auth.backends.ModelBackend",
+        db_index=True,
+    )
+    access_token = models.CharField(
+        _("access token"),
+        max_length=64,
+        unique=True,
+        db_index=True,
         default=generate_token,
     )
     refresh_token = models.CharField(
@@ -101,25 +121,13 @@ class AbstractBaseSession(base.BaseAuthModel):
 
 
 class Session(AbstractBaseSession):
-    user = models.ForeignKey(
-        settings.AUTH_USER_MODEL,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="sessions_set",
-    )
-    throttle_rate = models.CharField(
-        max_length=64,
-        default="",
-        blank=True,
-        verbose_name=_("Throttle rate"),
-    )
-    auth_backend = models.CharField(_("auth backend"), max_length=126, db_index=True)
     user_agent = models.TextField(_("user agent"), blank=True, default="")
-    ip_address = models.GenericIPAddressField(_("IP address"), db_index=True)
+    ip_address = models.GenericIPAddressField(
+        _("IP address"), null=True, blank=True, db_index=True
+    )
     location = models.CharField(_("location"), max_length=255, db_index=True)
-    last_activity = models.DateTimeField(
-        _("last activity"), default=timezone.now, db_index=True
+    throttle_rate = models.CharField(
+        _("throttle rate"), max_length=64, blank=True, default=""
     )
 
     objects = SessionManager()
@@ -129,8 +137,8 @@ class Session(AbstractBaseSession):
         indexes = [
             models.Index(fields=["user", "auth_backend"]),
             models.Index(fields=["user", "auth_backend", "is_active"]),
+            models.Index(fields=["last_used_at"]),
             models.Index(fields=["user_agent", "ip_address"]),
-            models.Index(fields=["last_activity"]),
         ]
         constraints = [
             models.CheckConstraint(
@@ -139,10 +147,18 @@ class Session(AbstractBaseSession):
             )
         ]
 
-    def update_activity(self):
-        """Update last activity timestamp."""
-        self.last_activity = timezone.now()
-        self.save(update_fields=["last_activity"])
+    def update_last_used_at(self):
+        self.last_used_at = timezone.now()
+        self.save(update_fields=["last_used_at"])
+
+    @cached_property
+    def last_activity(self):
+        """Return the client associated with this session.
+
+        Returns:
+            UserAgent: python UserAgent object
+        """
+        return self.last_used_at
 
     @cached_property
     def client(self):
@@ -156,15 +172,9 @@ class Session(AbstractBaseSession):
     def __str__(self):
         # td = humanize.naturaldate(self.expires_at)
         rate = self.throttle_rate or "0/s"
-        return "({0}: {1}".format(self.client.device, rate)
+        return "({0}: {1}".format(self.client, rate)
 
     def __repr__(self) -> str:
         return "({0}, {1}/{2})".format(
             self.session_key, self.user.get_username(), self.client
         )
-
-    @classmethod
-    def get_session_store_class(cls):
-        from django_authx.session_store import SessionStore
-
-        return SessionStore

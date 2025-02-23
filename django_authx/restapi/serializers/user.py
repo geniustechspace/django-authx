@@ -4,7 +4,7 @@ from django.contrib.auth import get_user_model
 from django.db import transaction
 from rest_framework import serializers
 
-from django_authx.models.auth import EmailAuth, PhoneAuth
+from django_authx.models import EmailAuth, PhoneAuth
 from django_authx.settings import authx_settings
 
 from . import serializerfields

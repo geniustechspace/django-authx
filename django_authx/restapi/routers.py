@@ -5,7 +5,6 @@ from .views import (
     PhoneAuthViewSet,
     OAuth2AuthViewSet,
     TOTPAuthViewSet,
-    MagicLinkAuthViewSet,
     SessionViewSet,
     UserViewSet,
 )
@@ -26,7 +25,6 @@ class AuthRouter(DefaultRouter):
         self.register("phone", PhoneAuthViewSet, basename="phone-auth")
         self.register("oauth2", OAuth2AuthViewSet, basename="oauth2-auth")
         self.register("totp", TOTPAuthViewSet, basename="totp-auth")
-        self.register("magic-link", MagicLinkAuthViewSet, basename="magic-link-auth")
         self.register("sessions", SessionViewSet, basename="session")
 
 
